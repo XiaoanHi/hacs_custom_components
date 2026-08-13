@@ -10,6 +10,7 @@ from homeassistant.components.media_player import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -46,6 +47,10 @@ _FEATURES = (
     | MediaPlayerEntityFeature.SEEK
 )
 
+# Order the SOURCE key cycles through inputs. Model-specific — re-tune if
+# your TV cycles in a different order.
+SOURCE_LIST = ["TV", "HDMI1", "HDMI2", "HDMI3"]
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -68,7 +73,8 @@ class TCLMediaPlayer(MediaPlayerEntity):
         self._media_state = MediaPlayerState.IDLE
         self._attr_unique_id = f"{coordinator.entry.entry_id}-media_player"
         self._attr_supported_features = _FEATURES
-        self._attr_source_list = ["SOURCE"]
+        self._current_source = SOURCE_LIST[0]  # baseline input; SOURCE cycles from here
+        self._attr_source_list = list(SOURCE_LIST)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.data.get(CONF_DEVICE_NAME) or coordinator.host,
@@ -160,6 +166,30 @@ class TCLMediaPlayer(MediaPlayerEntity):
     async def async_channel_down(self) -> None:
         await self._coordinator.client.key(KEY_CH_DOWN)
 
+    @property
+    def source(self) -> str | None:
+        return self._current_source
+
     async def async_select_source(self, source: str) -> None:
-        # The TCL SOURCE key cycles inputs; we can't enumerate names.
-        await self._coordinator.client.key(KEY_SOURCE)
+        """Switch inputs by cycling the SOURCE key.
+
+        The TCL protocol has no direct "set input" command — SOURCE just
+        cycles TV -> HDMI1 -> HDMI2 -> ... We track the current input and
+        press SOURCE the right number of times to reach the target.
+        """
+        target = (source or "").strip().upper()
+        if target not in self._attr_source_list:
+            raise ServiceValidationError(
+                f"Unknown source '{source}'; expected one of {self._attr_source_list}"
+            )
+        if not self.available:
+            raise ServiceValidationError("TCL TV is not connected")
+        source_list = self._attr_source_list
+        cur_idx = source_list.index(self._current_source)
+        tgt_idx = source_list.index(target)
+        presses = (tgt_idx - cur_idx) % len(source_list)
+        client = self._coordinator.client
+        for _ in range(presses):
+            await client.key(KEY_SOURCE)
+        self._current_source = target
+        self.async_write_ha_state()
