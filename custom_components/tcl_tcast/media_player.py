@@ -42,7 +42,6 @@ _FEATURES = (
     | MediaPlayerEntityFeature.PLAY
     | MediaPlayerEntityFeature.PAUSE
     | MediaPlayerEntityFeature.STOP
-    | MediaPlayerEntityFeature.PLAY_PAUSE
     | MediaPlayerEntityFeature.SELECT_SOURCE
     | MediaPlayerEntityFeature.SEEK
 )

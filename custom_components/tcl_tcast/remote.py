@@ -10,10 +10,10 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-try:  # HA >= 2024.1
+try:  # HA >= 2024.1: RemoteEntityFeature exists but has NO COMMANDS member
     from homeassistant.components.remote import RemoteEntityFeature
 
-    _SUPPORT_COMMANDS = RemoteEntityFeature.COMMANDS
+    _SUPPORT_COMMANDS = RemoteEntityFeature(0)  # send_command is core; no flag needed
 except ImportError:  # HA < 2024.1
     from homeassistant.components.remote import SUPPORT_COMMANDS as _SUPPORT_COMMANDS
 
