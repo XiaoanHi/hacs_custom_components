@@ -1,0 +1,13 @@
+{
+  "domain": "tcl_tcast",
+  "name": "TCL T-Cast",
+  "codeowners": ["@tcl_tcast"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/tcl-tcast/tcl_tcast",
+  "homeassistant": "2023.8.0",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/tcl-tcast/tcl_tcast/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

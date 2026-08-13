@@ -1,0 +1,69 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TCL T-Cast",
+        "description": "Connect a TCL TV. Choose manual entry or LAN scan."
+      },
+      "manual": {
+        "title": "Manual entry",
+        "description": "Enter the TV's IP address. It will be verified by a handshake on port 6553.",
+        "data": {
+          "host": "IP address",
+          "name": "Name (optional)"
+        }
+      },
+      "scan": {
+        "title": "LAN scan",
+        "description": "Select a discovered TCL TV",
+        "data": {
+          "host": "Device"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure",
+        "data": {
+          "host": "IP address"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the TV on port 6553 (handshake failed)."
+    },
+    "abort": {
+      "no_devices_found": "No TCL TVs found on the network.",
+      "cannot_connect": "Cannot connect to the TV.",
+      "already_configured": "This device is already configured."
+    }
+  },
+  "services": {
+    "send_key": {
+      "name": "Send key",
+      "description": "Send a TCL remote key code.",
+      "fields": {
+        "keycode": {
+          "name": "Key code",
+          "description": "TCL TR_KEY keycode."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Config entry id (defaults to first entry)."
+        }
+      }
+    },
+    "send_raw": {
+      "name": "Send raw command",
+      "description": "Send an arbitrary protocol message.",
+      "fields": {
+        "text": {
+          "name": "Message",
+          "description": "Raw 'cmd>>param' message."
+        },
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Config entry id (defaults to first entry)."
+        }
+      }
+    }
+  }
+}

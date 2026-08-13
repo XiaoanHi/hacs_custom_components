@@ -1,0 +1,40 @@
+send_key:
+  name: Send key
+  description: Send a TCL remote key code to the TV.
+  fields:
+    keycode:
+      name: Key code
+      description: >-
+        TCL TR_KEY keycode. Common values: 20=power, 21=vol up, 22=vol down,
+        11/12/13/14=up/down/left/right, 15=ok, 16=back, 19=home, 18=menu.
+      required: true
+      example: 20
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: box
+    entry_id:
+      name: Config entry
+      description: TCL T-Cast config entry id (defaults to the first entry).
+      required: false
+      selector:
+        text:
+
+send_raw:
+  name: Send raw command
+  description: Send an arbitrary raw protocol message to the TV (advanced).
+  fields:
+    text:
+      name: Message
+      description: Raw "cmd>>param" message, e.g. "149>>20".
+      required: true
+      example: "149>>20"
+      selector:
+        text:
+    entry_id:
+      name: Config entry
+      description: TCL T-Cast config entry id (defaults to the first entry).
+      required: false
+      selector:
+        text:
