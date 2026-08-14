@@ -1,4 +1,4 @@
-"""Button platform: one one-tap source-switch button per input (HDMI1/2/3, TV)."""
+"""Button platform: one one-tap source-switch button per input (HDMI1/2)."""
 from __future__ import annotations
 
 import logging

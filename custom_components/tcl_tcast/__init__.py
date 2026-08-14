@@ -35,7 +35,7 @@ _SERVICE_SCHEMA = vol.Schema(
 def _coordinator_for(hass: HomeAssistant, call: ServiceCall) -> TCLCoordinator:
     entries = hass.config_entries.async_entries(DOMAIN)
     if not entries:
-        raise ValueError(f"No {DOMAIN} config entries")
+        raise ServiceValidationError(f"No {DOMAIN} config entries")
     entry_id = call.data.get(ATTR_ENTRY_ID)
     entry = next((e for e in entries if e.entry_id == entry_id), entries[0])
     return entry.runtime_data

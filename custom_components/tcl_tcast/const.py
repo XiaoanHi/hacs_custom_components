@@ -118,7 +118,8 @@ SOURCE_BUTTONS = ["HDMI1", "HDMI2"]
 
 # --- Defaults ---
 SCAN_TIMEOUT = 8.0        # seconds for LAN discovery
-HEARTBEAT_INTERVAL = 30   # seconds between probes
+HEARTBEAT_INTERVAL = 10   # seconds between probes; must beat the TV's idle
+                          # drop (~15 s) or the socket is closed -> offline
 HEARTBEAT_CONFIRM = 25    # seconds to wait for a probe reply before offline
 HEARTBEAT_MISSES = 3      # consecutive missed replies before declaring offline
 RECONNECT_DELAY = 5       # seconds

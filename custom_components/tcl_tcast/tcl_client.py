@@ -245,6 +245,10 @@ class TCLClient:
 
     async def _read_frame(self, timeout: float | None = None) -> str:
         payload = await self._read_payload(timeout)
+        # Any received bytes prove the link is alive, even if the frame later
+        # fails to decode — keep the idle clock reset in that case so one
+        # undecodable frame cannot starve last_rx and false-mark us offline.
+        self.last_rx = asyncio.get_running_loop().time()
         if self.algorithm_type == 1:
             payload = self._decrypt(payload)
         return payload.decode("utf-8", errors="replace")
@@ -342,7 +346,6 @@ class TCLClient:
             except Exception:  # keep reader alive on transient errors
                 _LOGGER.debug("read_loop error", exc_info=True)
                 continue
-            self.last_rx = asyncio.get_running_loop().time()
             if self._query_fut is not None and not self._query_fut.done():
                 if msg.split(">>", 1)[0] == str(CMD_GET_RECENT_INPUT):
                     self._query_fut.set_result(msg)
