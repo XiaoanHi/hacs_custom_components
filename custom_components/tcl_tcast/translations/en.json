@@ -3,7 +3,11 @@
     "step": {
       "user": {
         "title": "TCL T-Cast",
-        "description": "Connect a TCL TV. Choose manual entry or LAN scan."
+        "description": "Connect a TCL TV. Choose manual entry or LAN scan.",
+        "menu_options": {
+          "manual": "Manual entry",
+          "scan": "LAN scan"
+        }
       },
       "manual": {
         "title": "Manual entry",

@@ -1,0 +1,73 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "TCL T-Cast",
+        "description": "连接 TCL 电视，选择手动输入或局域网扫描。",
+        "menu_options": {
+          "manual": "手动输入 IP",
+          "scan": "扫描局域网"
+        }
+      },
+      "manual": {
+        "title": "手动输入",
+        "description": "输入电视的 IP 地址，将通过 6553 端口握手验证。",
+        "data": {
+          "host": "IP 地址",
+          "name": "名称（可选）"
+        }
+      },
+      "scan": {
+        "title": "局域网扫描",
+        "description": "选择发现的 TCL 电视",
+        "data": {
+          "host": "设备"
+        }
+      },
+      "reconfigure": {
+        "title": "重新配置",
+        "data": {
+          "host": "IP 地址"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "无法连接电视（6553 端口握手失败）。"
+    },
+    "abort": {
+      "no_devices_found": "网络中没有发现 TCL 电视。",
+      "cannot_connect": "无法连接电视。",
+      "already_configured": "该设备已配置。"
+    }
+  },
+  "services": {
+    "send_key": {
+      "name": "发送按键",
+      "description": "向电视发送 TCL 遥控键码。",
+      "fields": {
+        "keycode": {
+          "name": "键码",
+          "description": "TCL TR_KEY 键码（如 20=电源、21=音量加）。"
+        },
+        "entry_id": {
+          "name": "配置项",
+          "description": "配置项 ID（默认为第一项）。"
+        }
+      }
+    },
+    "send_raw": {
+      "name": "发送原始命令",
+      "description": "向电视发送任意协议报文（高级）。",
+      "fields": {
+        "text": {
+          "name": "报文",
+          "description": "原始 'cmd>>param' 报文，如 \"149>>20\"。"
+        },
+        "entry_id": {
+          "name": "配置项",
+          "description": "配置项 ID（默认为第一项）。"
+        }
+      }
+    }
+  }
+}

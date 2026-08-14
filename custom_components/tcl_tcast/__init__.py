@@ -7,6 +7,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
@@ -42,11 +43,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the integration's global services (once)."""
 
     async def _handle_send_key(call: ServiceCall) -> None:
-        keycode = call.data[ATTR_KEYCODE]
-        await _coordinator_for(hass, call).client.key(int(keycode))
+        coordinator = _coordinator_for(hass, call)
+        if not coordinator.available:
+            raise ServiceValidationError("TCL TV is not connected")
+        await coordinator.client.key(int(call.data[ATTR_KEYCODE]))
 
     async def _handle_send_raw(call: ServiceCall) -> None:
-        await _coordinator_for(hass, call).client.send_raw(call.data[ATTR_TEXT])
+        coordinator = _coordinator_for(hass, call)
+        if not coordinator.available:
+            raise ServiceValidationError("TCL TV is not connected")
+        await coordinator.client.send_raw(call.data[ATTR_TEXT])
 
     hass.services.async_register(
         DOMAIN, SERVICE_SEND_KEY, _handle_send_key, vol.Schema(_SERVICE_SCHEMA.extend(

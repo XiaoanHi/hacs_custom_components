@@ -172,10 +172,17 @@ class TCLClient:
             self._writer.write(frame)
             await self._writer.drain()
 
-    async def _read_frame(self) -> str:
-        header = await self._reader.readexactly(4)
-        (length,) = struct.unpack(">I", header)
-        payload = await self._reader.readexactly(length)
+    async def _read_frame(self, timeout: float | None = None) -> str:
+        async def _read_payload() -> bytes:
+            header = await self._reader.readexactly(4)
+            (length,) = struct.unpack(">I", header)
+            return await self._reader.readexactly(length)
+
+        if timeout is not None:
+            payload = await asyncio.wait_for(_read_payload(), timeout)
+        else:
+            payload = await _read_payload()
+
         if self.algorithm_type == 1:
             payload = self._decrypt(payload)
         return payload.decode("utf-8", errors="replace")
@@ -217,11 +224,21 @@ class TCLClient:
         """
         await self._send(f"{CMD_ISONLINE}>>")
 
-    async def read_loop(self) -> None:
-        """Background task: read frames until the socket dies."""
+    async def read_loop(self, idle_timeout: float = 30.0) -> None:
+        """Background task: read frames until the socket dies or goes silent.
+
+        The TV replies to our heartbeats, so while it is online we always
+        receive data within ``idle_timeout``. A timeout (e.g. after the TV is
+        powered off without closing TCP) marks it offline.
+        """
         while self._writer is not None and not self._writer.is_closing():
             try:
-                msg = await self._read_frame()
+                msg = await self._read_frame(timeout=idle_timeout)
+            except asyncio.TimeoutError:
+                _LOGGER.debug(
+                    "No data from TV for %.0fs; assuming offline", idle_timeout
+                )
+                break
             except (asyncio.IncompleteReadError, ConnectionError, OSError):
                 break
             except Exception:  # keep reader alive on transient errors
@@ -251,6 +268,7 @@ class TCLClient:
         magic = bytes.fromhex("FF" * 6 + mac * 16)
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.setblocking(False)  # never block the event loop on UDP sends
         try:
             for _ in range(tries):
                 sock.sendto(magic, (broadcast, port))

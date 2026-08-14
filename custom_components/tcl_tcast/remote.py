@@ -83,6 +83,8 @@ class TCLRemoteEntity(RemoteEntity):
             await self._handle_command(client, str(cmd))
 
     async def _handle_command(self, client, cmd: str) -> None:
+        if not self.available:
+            raise ServiceValidationError("TCL TV is not connected")
         cmd = cmd.strip()
         if not cmd:
             return

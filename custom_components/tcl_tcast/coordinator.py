@@ -13,6 +13,7 @@ from .const import (
     CONF_MAC,
     CONNECT_TIMEOUT,
     HEARTBEAT_INTERVAL,
+    HEARTBEAT_TIMEOUT,
     RECONNECT_DELAY,
 )
 from .tcl_client import TCLClient
@@ -53,10 +54,12 @@ class TCLCoordinator:
 
     async def async_unload(self) -> None:
         self._shutdown = True
-        for task in (self._run_task, self._read_task, self._hb_task):
-            if task:
-                task.cancel()
+        tasks = [t for t in (self._run_task, self._read_task, self._hb_task) if t]
+        for task in tasks:
+            task.cancel()
         await self.client.close()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         self._listeners.clear()
 
     async def _run(self) -> None:
@@ -82,7 +85,8 @@ class TCLCoordinator:
                     continue
                 self.connected = True
                 self._read_task = asyncio.create_task(
-                    self.client.read_loop(), name="tcl_tcast_read"
+                    self.client.read_loop(idle_timeout=HEARTBEAT_TIMEOUT),
+                    name="tcl_tcast_read",
                 )
                 self._hb_task = asyncio.create_task(
                     self._heartbeat_loop(), name="tcl_tcast_heartbeat"

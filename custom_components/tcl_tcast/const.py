@@ -112,6 +112,7 @@ for _digit in range(1, 10):
 
 # --- Defaults ---
 SCAN_TIMEOUT = 8.0        # seconds for LAN discovery
-HEARTBEAT_INTERVAL = 20   # seconds
+HEARTBEAT_INTERVAL = 20   # seconds between heartbeats
+HEARTBEAT_TIMEOUT = 30    # seconds of silence before declaring the TV offline
 RECONNECT_DELAY = 5       # seconds
 CONNECT_TIMEOUT = 10      # seconds
