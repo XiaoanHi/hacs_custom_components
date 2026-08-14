@@ -117,7 +117,11 @@ class TCLClient:
             raise
 
     async def _handshake(self) -> None:
-        """Cmd-159 handshake; the frame is always plaintext."""
+        """Cmd-159 handshake; the frame is always plaintext.
+
+        Some TV firmwares already encrypt the handshake reply (or push
+        unrelated frames first). Try plaintext, then AES, until we see 159.
+        """
         try:
             self._writer.set_tcp_nodelay(True)
         except AttributeError:  # Python < 3.11
@@ -127,8 +131,34 @@ class TCLClient:
             f"{CMD_GET_CLIENTTYPE}>>{self.phone_name}>>1>>{self.uuid}>>1",
             ignore_alg=True,
         )
-        resp = await self._read_frame()
-        self._parse_handshake(resp)
+        for _ in range(3):
+            payload = await self._read_payload()
+            text = self._decode_handshake(payload)
+            if text is not None:
+                self._parse_handshake(text)
+                return
+        _LOGGER.warning(
+            "Could not parse a valid handshake response from %s", self.host
+        )
+
+    def _decode_handshake(self, payload: bytes) -> str | None:
+        prefix = f"{CMD_GET_CLIENTTYPE}>>"
+        candidates = [payload]
+        # Only try AES on AES-sized data; a plaintext frame isn't a valid
+        # ciphertext length and would raise.
+        if self.algorithm_type == -1 and len(payload) % 16 == 0:
+            try:
+                candidates.append(self._decrypt(payload))
+            except Exception:
+                pass
+        for cand in candidates:
+            try:
+                text = cand.decode("utf-8", errors="replace")
+            except Exception:
+                continue
+            if text.startswith(prefix):
+                return text
+        return None
 
     def _enable_keepalive(self) -> None:
         """Let the OS detect a powered-off TV instead of relying on silence.
@@ -199,17 +229,18 @@ class TCLClient:
             self._writer.write(frame)
             await self._writer.drain()
 
-    async def _read_frame(self, timeout: float | None = None) -> str:
-        async def _read_payload() -> bytes:
+    async def _read_payload(self, timeout: float | None = None) -> bytes:
+        async def _read() -> bytes:
             header = await self._reader.readexactly(4)
             (length,) = struct.unpack(">I", header)
             return await self._reader.readexactly(length)
 
         if timeout is not None:
-            payload = await asyncio.wait_for(_read_payload(), timeout)
-        else:
-            payload = await _read_payload()
+            return await asyncio.wait_for(_read(), timeout)
+        return await _read()
 
+    async def _read_frame(self, timeout: float | None = None) -> str:
+        payload = await self._read_payload(timeout)
         if self.algorithm_type == 1:
             payload = self._decrypt(payload)
         return payload.decode("utf-8", errors="replace")
