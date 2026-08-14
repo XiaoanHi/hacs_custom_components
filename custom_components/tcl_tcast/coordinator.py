@@ -13,7 +13,10 @@ from .const import (
     CONF_MAC,
     CONNECT_TIMEOUT,
     HEARTBEAT_INTERVAL,
+    KEY_DOWN,
+    KEY_OK,
     KEY_SOURCE,
+    KEY_UP,
     RECONNECT_DELAY,
     SOURCE_LIST,
 )
@@ -124,19 +127,40 @@ class TCLCoordinator:
         return self._current_source
 
     async def async_select_source(self, source: str) -> None:
-        """Cycle the SOURCE key to the requested input (see SOURCE_LIST).
+        """Switch input via the on-screen input menu.
 
-        The protocol has no direct "set input" command, so we press SOURCE
-        the right number of times from the currently tracked input.
+        On TCL TVs the SOURCE key opens an input menu whose focus starts on
+        the *current* input. We navigate UP/DOWN from the tracked current
+        input to the target and confirm with OK. Keep the tracked current
+        input accurate with the ``tcl_tcast.set_current_source`` service.
         """
         target = (source or "").strip().upper()
         if target not in SOURCE_LIST:
             raise ValueError(f"Unknown source '{source}'")
         cur_idx = SOURCE_LIST.index(self._current_source)
         tgt_idx = SOURCE_LIST.index(target)
-        presses = (tgt_idx - cur_idx) % len(SOURCE_LIST)
-        for _ in range(presses):
-            await self.client.key(KEY_SOURCE)
+        if cur_idx == tgt_idx:
+            return  # already on the requested input
+        await self.client.key(KEY_SOURCE)      # open the input menu
+        if tgt_idx > cur_idx:
+            for _ in range(tgt_idx - cur_idx):
+                await self.client.key(KEY_DOWN)
+        else:
+            for _ in range(cur_idx - tgt_idx):
+                await self.client.key(KEY_UP)
+        await self.client.key(KEY_OK)          # confirm selection
+        self._current_source = target
+        self._notify()
+
+    async def async_set_current_source(self, source: str) -> None:
+        """Calibrate the tracked current input (does NOT switch the TV).
+
+        Call this once the TV is actually on a known input so subsequent
+        source switches navigate from the right menu position.
+        """
+        target = (source or "").strip().upper()
+        if target not in SOURCE_LIST:
+            raise ValueError(f"Unknown source '{source}'")
         self._current_source = target
         self._notify()
 

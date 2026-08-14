@@ -62,5 +62,5 @@ class TCLSourceSelect(SelectEntity):
     async def async_will_remove_from_hass(self) -> None:
         self._coordinator.remove_listener(self._async_updated)
 
-    async def _async_updated(self) -> None:
+    def _async_updated(self) -> None:
         self.async_write_ha_state()

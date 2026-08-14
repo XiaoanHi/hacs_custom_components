@@ -38,3 +38,27 @@ send_raw:
       required: false
       selector:
         text:
+
+set_current_source:
+  name: Set current source
+  description: >-
+    Calibrate the TV's current input so input switching navigates correctly.
+    Does NOT switch the TV. Set it to the input the TV is actually on now.
+  fields:
+    source:
+      name: Source
+      description: Current input, one of TV / HDMI1 / HDMI2 / AV.
+      required: true
+      selector:
+        select:
+          options:
+            - TV
+            - HDMI1
+            - HDMI2
+            - AV
+    entry_id:
+      name: Config entry
+      description: TCL T-Cast config entry id (defaults to the first entry).
+      required: false
+      selector:
+        text:

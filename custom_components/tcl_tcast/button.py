@@ -10,7 +10,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_DEVICE_NAME, DOMAIN, SOURCE_LIST
+from .const import CONF_DEVICE_NAME, DOMAIN, SOURCE_BUTTONS
 from .coordinator import TCLCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,10 +21,10 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up one source-switch button per input."""
+    """Set up one source-switch button per configured input."""
     coordinator: TCLCoordinator = entry.runtime_data
     async_add_entities(
-        [TCLSourceButton(coordinator, source) for source in SOURCE_LIST],
+        [TCLSourceButton(coordinator, source) for source in SOURCE_BUTTONS],
         update_before_add=True,
     )
 

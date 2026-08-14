@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
-from .const import DOMAIN
+from .const import DOMAIN, SOURCE_LIST
 from .coordinator import TCLCoordinator
 
 PLATFORMS = ["remote", "media_player", "select", "button"]
@@ -19,8 +19,10 @@ _LOGGER = logging.getLogger(__name__)
 
 SERVICE_SEND_KEY = "send_key"
 SERVICE_SEND_RAW = "send_raw"
+SERVICE_SET_CURRENT_SOURCE = "set_current_source"
 ATTR_KEYCODE = "keycode"
 ATTR_TEXT = "text"
+ATTR_SOURCE = "source"
 ATTR_ENTRY_ID = "entry_id"
 
 _SERVICE_SCHEMA = vol.Schema(
@@ -54,6 +56,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             raise ServiceValidationError("TCL TV is not connected")
         await coordinator.client.send_raw(call.data[ATTR_TEXT])
 
+    async def _handle_set_current_source(call: ServiceCall) -> None:
+        await _coordinator_for(hass, call).async_set_current_source(
+            call.data[ATTR_SOURCE]
+        )
+
     hass.services.async_register(
         DOMAIN, SERVICE_SEND_KEY, _handle_send_key, vol.Schema(_SERVICE_SCHEMA.extend(
             {vol.Required(ATTR_KEYCODE): vol.Coerce(int)}
@@ -63,6 +70,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         DOMAIN, SERVICE_SEND_RAW, _handle_send_raw, vol.Schema(_SERVICE_SCHEMA.extend(
             {vol.Required(ATTR_TEXT): cv.string}
         ))
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_CURRENT_SOURCE, _handle_set_current_source,
+        vol.Schema(_SERVICE_SCHEMA.extend(
+            {vol.Required(ATTR_SOURCE): vol.In(SOURCE_LIST)}
+        )),
     )
     return True
 
