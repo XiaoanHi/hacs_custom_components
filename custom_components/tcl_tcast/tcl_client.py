@@ -122,12 +122,39 @@ class TCLClient:
             self._writer.set_tcp_nodelay(True)
         except AttributeError:  # Python < 3.11
             pass
+        self._enable_keepalive()
         await self._send(
             f"{CMD_GET_CLIENTTYPE}>>{self.phone_name}>>1>>{self.uuid}>>1",
             ignore_alg=True,
         )
         resp = await self._read_frame()
         self._parse_handshake(resp)
+
+    def _enable_keepalive(self) -> None:
+        """Let the OS detect a powered-off TV instead of relying on silence.
+
+        The TV may stay TCP-silent even while online (e.g. if it does not
+        reply to our heartbeat), so we must not use a read timeout to judge
+        it offline. TCP keepalive probes report a dead connection from the
+        network stack. Tuning knobs are Linux-only; ignore unsupported opts.
+        """
+        sock = None
+        try:
+            sock = self._writer.transport.get_extra_info("socket")
+        except Exception:
+            return
+        if sock is None:
+            return
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        except OSError:
+            return
+        for opt_name, val in (("TCP_KEEPIDLE", 30), ("TCP_KEEPINTVL", 10), ("TCP_KEEPCNT", 6)):
+            if hasattr(socket, opt_name):
+                try:
+                    sock.setsockopt(socket.IPPROTO_TCP, getattr(socket, opt_name), val)
+                except OSError:
+                    pass
 
     def _parse_handshake(self, resp: str) -> None:
         parts = resp.split(">>")
@@ -224,12 +251,13 @@ class TCLClient:
         """
         await self._send(f"{CMD_ISONLINE}>>")
 
-    async def read_loop(self, idle_timeout: float = 30.0) -> None:
-        """Background task: read frames until the socket dies or goes silent.
+    async def read_loop(self, idle_timeout: float = 300.0) -> None:
+        """Background task: read frames until the socket dies.
 
-        The TV replies to our heartbeats, so while it is online we always
-        receive data within ``idle_timeout``. A timeout (e.g. after the TV is
-        powered off without closing TCP) marks it offline.
+        Offline detection is handled by TCP keepalive (see _enable_keepalive),
+        not by silence. ``idle_timeout`` is only a slow fallback for
+        environments without keepalive support, so an online-but-silent TV is
+        not wrongly marked offline.
         """
         while self._writer is not None and not self._writer.is_closing():
             try:

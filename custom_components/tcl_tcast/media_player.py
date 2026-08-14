@@ -22,13 +22,13 @@ from .const import (
     KEY_CH_UP,
     KEY_MUTE,
     KEY_POWER,
-    KEY_SOURCE,
     KEY_VOL_DOWN,
     KEY_VOL_UP,
     MEDIA_PAUSE,
     MEDIA_PLAY,
     MEDIA_SEEK,
     MEDIA_STOP,
+    SOURCE_LIST,
 )
 from .coordinator import TCLCoordinator
 
@@ -46,10 +46,6 @@ _FEATURES = (
     | MediaPlayerEntityFeature.SELECT_SOURCE
     | MediaPlayerEntityFeature.SEEK
 )
-
-# Order the SOURCE key cycles through inputs. Model-specific — re-tune if
-# your TV cycles in a different order.
-SOURCE_LIST = ["TV", "HDMI1", "HDMI2", "HDMI3"]
 
 
 async def async_setup_entry(
@@ -73,7 +69,6 @@ class TCLMediaPlayer(MediaPlayerEntity):
         self._media_state = MediaPlayerState.IDLE
         self._attr_unique_id = f"{coordinator.entry.entry_id}-media_player"
         self._attr_supported_features = _FEATURES
-        self._current_source = SOURCE_LIST[0]  # baseline input; SOURCE cycles from here
         self._attr_source_list = list(SOURCE_LIST)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
@@ -168,28 +163,11 @@ class TCLMediaPlayer(MediaPlayerEntity):
 
     @property
     def source(self) -> str | None:
-        return self._current_source
+        return self._coordinator.current_source
 
     async def async_select_source(self, source: str) -> None:
-        """Switch inputs by cycling the SOURCE key.
-
-        The TCL protocol has no direct "set input" command — SOURCE just
-        cycles TV -> HDMI1 -> HDMI2 -> ... We track the current input and
-        press SOURCE the right number of times to reach the target.
-        """
-        target = (source or "").strip().upper()
-        if target not in self._attr_source_list:
-            raise ServiceValidationError(
-                f"Unknown source '{source}'; expected one of {self._attr_source_list}"
-            )
+        """Switch inputs by cycling the SOURCE key (see coordinator)."""
         if not self.available:
             raise ServiceValidationError("TCL TV is not connected")
-        source_list = self._attr_source_list
-        cur_idx = source_list.index(self._current_source)
-        tgt_idx = source_list.index(target)
-        presses = (tgt_idx - cur_idx) % len(source_list)
-        client = self._coordinator.client
-        for _ in range(presses):
-            await client.key(KEY_SOURCE)
-        self._current_source = target
+        await self._coordinator.async_select_source(source)
         self.async_write_ha_state()

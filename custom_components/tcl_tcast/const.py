@@ -110,9 +110,11 @@ KEY_COMMANDS["0"] = 10  # TR_KEY_0 = 10
 for _digit in range(1, 10):
     KEY_COMMANDS[str(_digit)] = _digit
 
+# Input order the SOURCE key cycles through (model-specific).
+SOURCE_LIST = ["TV", "HDMI1", "HDMI2", "HDMI3"]
+
 # --- Defaults ---
 SCAN_TIMEOUT = 8.0        # seconds for LAN discovery
 HEARTBEAT_INTERVAL = 20   # seconds between heartbeats
-HEARTBEAT_TIMEOUT = 30    # seconds of silence before declaring the TV offline
 RECONNECT_DELAY = 5       # seconds
 CONNECT_TIMEOUT = 10      # seconds

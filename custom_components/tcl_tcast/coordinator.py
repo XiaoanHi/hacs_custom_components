@@ -13,8 +13,9 @@ from .const import (
     CONF_MAC,
     CONNECT_TIMEOUT,
     HEARTBEAT_INTERVAL,
-    HEARTBEAT_TIMEOUT,
+    KEY_SOURCE,
     RECONNECT_DELAY,
+    SOURCE_LIST,
 )
 from .tcl_client import TCLClient
 
@@ -41,6 +42,7 @@ class TCLCoordinator:
             uuid=str(entry.entry_id),
         )
         self.connected = False
+        self._current_source = SOURCE_LIST[0]  # input the SOURCE key cycles from
         self._listeners: list[Listener] = []
         self._run_task: asyncio.Task | None = None
         self._read_task: asyncio.Task | None = None
@@ -85,7 +87,7 @@ class TCLCoordinator:
                     continue
                 self.connected = True
                 self._read_task = asyncio.create_task(
-                    self.client.read_loop(idle_timeout=HEARTBEAT_TIMEOUT),
+                    self.client.read_loop(),
                     name="tcl_tcast_read",
                 )
                 self._hb_task = asyncio.create_task(
@@ -117,6 +119,27 @@ class TCLCoordinator:
         self._hb_task = None
 
     # -- state ---------------------------------------------------------- #
+    @property
+    def current_source(self) -> str:
+        return self._current_source
+
+    async def async_select_source(self, source: str) -> None:
+        """Cycle the SOURCE key to the requested input (see SOURCE_LIST).
+
+        The protocol has no direct "set input" command, so we press SOURCE
+        the right number of times from the currently tracked input.
+        """
+        target = (source or "").strip().upper()
+        if target not in SOURCE_LIST:
+            raise ValueError(f"Unknown source '{source}'")
+        cur_idx = SOURCE_LIST.index(self._current_source)
+        tgt_idx = SOURCE_LIST.index(target)
+        presses = (tgt_idx - cur_idx) % len(SOURCE_LIST)
+        for _ in range(presses):
+            await self.client.key(KEY_SOURCE)
+        self._current_source = target
+        self._notify()
+
     @property
     def available(self) -> bool:
         return self.connected

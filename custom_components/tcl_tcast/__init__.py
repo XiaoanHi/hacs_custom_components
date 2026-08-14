@@ -13,7 +13,7 @@ from homeassistant.helpers import config_validation as cv
 from .const import DOMAIN
 from .coordinator import TCLCoordinator
 
-PLATFORMS = ["remote", "media_player"]
+PLATFORMS = ["remote", "media_player", "select", "button"]
 
 _LOGGER = logging.getLogger(__name__)
 
