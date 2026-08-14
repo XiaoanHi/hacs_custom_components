@@ -117,11 +117,14 @@ class TCLCoordinator:
             await self._sleep_or_shutdown(HEARTBEAT_INTERVAL)
 
     async def _sleep_or_shutdown(self, delay: float) -> None:
-        try:
-            await asyncio.sleep(delay)
-        except asyncio.CancelledError:
-            self._shutdown = True
-            raise
+        """Sleep, letting cancellation propagate without flagging shutdown.
+
+        A cancel while we sleep is almost always the reconnect path tearing
+        down the heartbeat task (``_cancel_aux``), NOT an unload request.
+        Flagging ``_shutdown`` there would exit the reconnect loop forever, so
+        a TV that powers back on would never be reconnected.
+        """
+        await asyncio.sleep(delay)
 
     def _cancel_aux(self) -> None:
         for task in (self._read_task, self._hb_task):
