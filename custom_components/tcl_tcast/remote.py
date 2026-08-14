@@ -1,6 +1,7 @@
 """Remote platform: TCL TV remote control entity."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from homeassistant.components.remote import RemoteEntity
@@ -17,7 +18,7 @@ try:  # HA >= 2024.1: RemoteEntityFeature exists but has NO COMMANDS member
 except ImportError:  # HA < 2024.1
     from homeassistant.components.remote import SUPPORT_COMMANDS as _SUPPORT_COMMANDS
 
-from .const import CONF_DEVICE_NAME, DOMAIN, KEY_COMMANDS
+from .const import CONF_DEVICE_NAME, DOMAIN, KEY_COMMANDS, KEY_POWER
 from .coordinator import TCLCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class TCLRemoteEntity(RemoteEntity):
     def __init__(self, coordinator: TCLCoordinator) -> None:
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.entry.entry_id}-remote"
+        self._attr_translation_key = "remote"
         self._attr_supported_features = _SUPPORT_COMMANDS
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
@@ -57,6 +59,29 @@ class TCLRemoteEntity(RemoteEntity):
     @property
     def available(self) -> bool:
         return self._coordinator.available
+
+    # -- power (the remote's power button) -------------------------------- #
+    async def async_turn_off(self) -> None:
+        """Power off via the toggle POWER key; only when the link is up."""
+        if self.is_on:
+            await self._coordinator.client.key(KEY_POWER)
+
+    async def async_turn_on(self) -> None:
+        """Power on: link up means the TV is already on; offline -> WOL."""
+        if not self.is_on:
+            if self._coordinator.mac:
+                _LOGGER.debug("Waking TV via WOL (mac=%s)", self._coordinator.mac)
+                await self._coordinator.client.wol_wake(self._coordinator.mac)
+            else:
+                _LOGGER.warning("TV offline and no MAC configured for WOL")
+
+    def turn_on(self) -> None:
+        """Sync fallback so the base executor wrapper never raises."""
+        asyncio.run_coroutine_threadsafe(self.async_turn_on(), self.hass.loop)
+
+    def turn_off(self) -> None:
+        """Sync fallback so the base executor wrapper never raises."""
+        asyncio.run_coroutine_threadsafe(self.async_turn_off(), self.hass.loop)
 
     async def async_added_to_hass(self) -> None:
         self._coordinator.add_listener(self._async_updated)

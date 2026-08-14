@@ -1,4 +1,15 @@
 {
+  "entity": {
+    "remote": {
+      "name": "遥控器"
+    },
+    "media_player": {
+      "name": "媒体播放器"
+    },
+    "source": {
+      "name": "信号源"
+    }
+  },
   "config": {
     "step": {
       "user": {

@@ -70,6 +70,7 @@ class TCLMediaPlayer(MediaPlayerEntity):
         self._media_state = MediaPlayerState.IDLE
         self._attr_is_volume_muted = False
         self._attr_unique_id = f"{coordinator.entry.entry_id}-media_player"
+        self._attr_translation_key = "media_player"
         self._attr_supported_features = _FEATURES
         self._attr_source_list = list(SOURCE_LIST)
         self._attr_device_info = DeviceInfo(
@@ -129,6 +130,10 @@ class TCLMediaPlayer(MediaPlayerEntity):
         await self._coordinator.client.send_raw(
             f"{CMD_SET_SYSTEM_VOLUME}>>{max(0, min(100, int(volume * 100)))}"
         )
+        # The TV never reports its volume back, so track the last level we
+        # set to keep the slider from snapping to 0 after each drag.
+        self._attr_volume_level = volume
+        self.async_write_ha_state()
 
     async def async_volume_up(self) -> None:
         await self._coordinator.client.key(KEY_VOL_UP)

@@ -1,4 +1,15 @@
 {
+  "entity": {
+    "remote": {
+      "name": "Remote"
+    },
+    "media_player": {
+      "name": "Media player"
+    },
+    "source": {
+      "name": "Source"
+    }
+  },
   "config": {
     "step": {
       "user": {
