@@ -24,10 +24,12 @@ from .const import (
     AES_IV,
     AES_KEY,
     CMD_GET_CLIENTTYPE,
+    CMD_GET_RECENT_INPUT,
     CMD_ISONLINE,
     CMD_KEY,
     CMD_MOUSE,
     CMD_SNAP_SHOT,
+    SOURCE_LIST,
     TCP_PORT,
     WOL_BROADCAST,
     WOL_PORT,
@@ -94,6 +96,8 @@ class TCLClient:
         self.algorithm_type = -1          # -1 plaintext, 1 AES
         self.device_info: dict[str, str] = {}
         self.connected = False
+        self.last_rx = 0.0                # loop.time() of last received frame
+        self._query_fut: asyncio.Future | None = None
         self._lock = asyncio.Lock()
 
     # ------------------------------------------------------------------ #
@@ -282,6 +286,41 @@ class TCLClient:
         """
         await self._send(f"{CMD_ISONLINE}>>")
 
+    async def query_current_input(self, timeout: float = 3.0) -> str | None:
+        """Query the TV's current/recent input (cmd 269); return the raw reply."""
+        fut = asyncio.get_running_loop().create_future()
+        self._query_fut = fut
+        try:
+            await self._send(f"{CMD_GET_RECENT_INPUT}>>1")
+            return await asyncio.wait_for(asyncio.shield(fut), timeout)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            self._query_fut = None
+
+    @staticmethod
+    def parse_input(data: str) -> str | None:
+        """Best-effort parse of a cmd-269 field into a SOURCE_LIST entry."""
+        up = (data or "").strip().upper()
+        if not up:
+            return None
+        for source in SOURCE_LIST:
+            if source in up:
+                return source
+        for key, value in (
+            ("HDMI 1", "HDMI1"), ("HDMI-1", "HDMI1"),
+            ("HDMI 2", "HDMI2"), ("HDMI-2", "HDMI2"),
+        ):
+            if key.upper() in up:
+                return value
+        try:
+            idx = int(up)
+            if 0 <= idx < len(SOURCE_LIST):
+                return SOURCE_LIST[idx]
+        except ValueError:
+            pass
+        return None
+
     async def read_loop(self, idle_timeout: float = 300.0) -> None:
         """Background task: read frames until the socket dies.
 
@@ -303,6 +342,10 @@ class TCLClient:
             except Exception:  # keep reader alive on transient errors
                 _LOGGER.debug("read_loop error", exc_info=True)
                 continue
+            self.last_rx = asyncio.get_running_loop().time()
+            if self._query_fut is not None and not self._query_fut.done():
+                if msg.split(">>", 1)[0] == str(CMD_GET_RECENT_INPUT):
+                    self._query_fut.set_result(msg)
             if self.on_message:
                 try:
                     await self.on_message(msg)

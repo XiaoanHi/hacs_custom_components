@@ -37,6 +37,7 @@ CMD_GET_SYSTEM_VOLUME = 183
 CMD_SET_SYSTEM_VOLUME = 184
 CMD_SNAP_SHOT = 225
 CMD_VOICE_STRING = 233
+CMD_GET_RECENT_INPUT = 269
 
 # --- Media command numbers ---
 MEDIA_STOP = 129
@@ -118,5 +119,6 @@ SOURCE_BUTTONS = ["HDMI1", "HDMI2"]
 # --- Defaults ---
 SCAN_TIMEOUT = 8.0        # seconds for LAN discovery
 HEARTBEAT_INTERVAL = 20   # seconds between heartbeats
+HEARTBEAT_CONFIRM = 25    # seconds to wait for a heartbeat reply before offline
 RECONNECT_DELAY = 5       # seconds
 CONNECT_TIMEOUT = 10      # seconds

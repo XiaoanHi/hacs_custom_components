@@ -12,7 +12,7 @@ from .const import (
     CONF_HOST,
     CONF_MAC,
     CONNECT_TIMEOUT,
-    HEARTBEAT_INTERVAL,
+    HEARTBEAT_CONFIRM,
     KEY_DOWN,
     KEY_OK,
     KEY_SOURCE,
@@ -102,12 +102,32 @@ class TCLCoordinator:
                 self._notify()
 
     async def _heartbeat_loop(self) -> None:
+        """Send heartbeats and confirm the TV replies; else mark it offline.
+
+        The TV answers our ``150>>`` heartbeat, so if no frame (heartbeat
+        reply or anything else) arrives within HEARTBEAT_CONFIRM the link is
+        dead (e.g. TV lost its WiFi) — close the socket so read_loop exits
+        and the reconnect loop kicks in.
+        """
         while self.connected and not self._shutdown:
+            before = self.client.last_rx
             try:
                 await self.client.heartbeat()
             except Exception:
                 break
-            await self._sleep_or_shutdown(HEARTBEAT_INTERVAL)
+            try:
+                await self._sleep_or_shutdown(HEARTBEAT_CONFIRM)
+            except asyncio.CancelledError:
+                raise
+            if self._shutdown or not self.connected:
+                break
+            if self.client.last_rx <= before:
+                _LOGGER.warning(
+                    "No heartbeat reply from TCL TV at %s; assuming offline",
+                    self.host,
+                )
+                await self.client.close()
+                break
 
     async def _sleep_or_shutdown(self, delay: float) -> None:
         try:
@@ -139,6 +159,14 @@ class TCLCoordinator:
         target = (source or "").strip().upper()
         if target not in SOURCE_LIST:
             raise ValueError(f"Unknown source '{source}'")
+        # Best-effort: try to read the TV's actual current input first.
+        raw = await self.client.query_current_input(timeout=1.0)
+        if raw:
+            parts = raw.split(">>")
+            if len(parts) > 2:
+                parsed = self.client.parse_input(parts[2])
+                if parsed:
+                    self._current_source = parsed
         cur_idx = SOURCE_LIST.index(self._current_source)
         tgt_idx = SOURCE_LIST.index(target)
         if cur_idx == tgt_idx:
