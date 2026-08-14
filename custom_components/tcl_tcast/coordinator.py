@@ -144,12 +144,16 @@ class TCLCoordinator:
         if cur_idx == tgt_idx:
             return  # already on the requested input
         await self.client.key(KEY_SOURCE)      # open the input menu
+        await asyncio.sleep(1.0)               # let the menu fully render
         if tgt_idx > cur_idx:
             for _ in range(tgt_idx - cur_idx):
                 await self.client.key(KEY_DOWN)
+                await asyncio.sleep(0.3)
         else:
             for _ in range(cur_idx - tgt_idx):
                 await self.client.key(KEY_UP)
+                await asyncio.sleep(0.3)
+        await asyncio.sleep(0.3)
         await self.client.key(KEY_OK)          # confirm selection
         self._current_source = target
         self._notify()
