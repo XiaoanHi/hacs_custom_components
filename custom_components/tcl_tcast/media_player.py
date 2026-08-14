@@ -68,9 +68,11 @@ class TCLMediaPlayer(MediaPlayerEntity):
     def __init__(self, coordinator: TCLCoordinator) -> None:
         self._coordinator = coordinator
         self._media_state = MediaPlayerState.IDLE
+        self._was_available = False
         self._attr_is_volume_muted = False
         self._attr_unique_id = f"{coordinator.entry.entry_id}-media_player"
         self._attr_translation_key = "media_player"
+        self._attr_icon = "mdi:television"
         self._attr_supported_features = _FEATURES
         self._attr_source_list = list(SOURCE_LIST)
         self._attr_device_info = DeviceInfo(
@@ -97,7 +99,15 @@ class TCLMediaPlayer(MediaPlayerEntity):
         self._coordinator.remove_listener(self._async_updated)
 
     def _async_updated(self) -> None:
+        if not self._was_available and self._coordinator.available:
+            # TV came back online: clear any optimistic power-off state.
+            self._media_state = MediaPlayerState.IDLE
+        self._was_available = self._coordinator.available
         self.async_write_ha_state()
+
+    def _require_available(self) -> None:
+        if not self.available:
+            raise ServiceValidationError("TCL TV is not connected")
 
     # -- power ---------------------------------------------------------- #
     async def async_turn_on(self) -> None:
@@ -116,6 +126,10 @@ class TCLMediaPlayer(MediaPlayerEntity):
     async def async_turn_off(self) -> None:
         if self._coordinator.available:
             await self._coordinator.client.key(KEY_POWER)
+            # Optimistic: reflect the power-off immediately instead of waiting
+            # for the socket drop to be detected (can take up to ~30 s).
+            self._media_state = MediaPlayerState.STANDBY
+            self.async_write_ha_state()
 
     def turn_on(self) -> None:
         """Sync fallback so the base executor wrapper never raises."""
@@ -127,6 +141,7 @@ class TCLMediaPlayer(MediaPlayerEntity):
 
     # -- volume --------------------------------------------------------- #
     async def async_set_volume_level(self, volume: float) -> None:
+        self._require_available()
         await self._coordinator.client.send_raw(
             f"{CMD_SET_SYSTEM_VOLUME}>>{max(0, min(100, int(volume * 100)))}"
         )
@@ -136,12 +151,15 @@ class TCLMediaPlayer(MediaPlayerEntity):
         self.async_write_ha_state()
 
     async def async_volume_up(self) -> None:
+        self._require_available()
         await self._coordinator.client.key(KEY_VOL_UP)
 
     async def async_volume_down(self) -> None:
+        self._require_available()
         await self._coordinator.client.key(KEY_VOL_DOWN)
 
     async def async_mute_volume(self, mute: bool) -> None:
+        self._require_available()
         # KEY_MUTE is a toggle; only press it when our tracked belief differs,
         # so repeated calls with the same target don't flip the TV back.
         if mute == self._attr_is_volume_muted:
@@ -152,16 +170,19 @@ class TCLMediaPlayer(MediaPlayerEntity):
 
     # -- transport ------------------------------------------------------ #
     async def async_media_play(self) -> None:
+        self._require_available()
         await self._coordinator.client.send_raw(f"{MEDIA_PLAY}")
         self._media_state = MediaPlayerState.PLAYING
         self.async_write_ha_state()
 
     async def async_media_pause(self) -> None:
+        self._require_available()
         await self._coordinator.client.send_raw(f"{MEDIA_PAUSE}")
         self._media_state = MediaPlayerState.PAUSED
         self.async_write_ha_state()
 
     async def async_media_stop(self) -> None:
+        self._require_available()
         await self._coordinator.client.send_raw(f"{MEDIA_STOP}")
         self._media_state = MediaPlayerState.IDLE
         self.async_write_ha_state()
@@ -173,6 +194,7 @@ class TCLMediaPlayer(MediaPlayerEntity):
             await self.async_media_play()
 
     async def async_media_seek(self, position: float) -> None:
+        self._require_available()
         # HA passes seconds; the TCL protocol expects milliseconds.
         await self._coordinator.client.send_raw(
             f"{MEDIA_SEEK}>>{int(position * 1000)}"
@@ -180,9 +202,11 @@ class TCLMediaPlayer(MediaPlayerEntity):
 
     # -- channels / source ---------------------------------------------- #
     async def async_channel_up(self) -> None:
+        self._require_available()
         await self._coordinator.client.key(KEY_CH_UP)
 
     async def async_channel_down(self) -> None:
+        self._require_available()
         await self._coordinator.client.key(KEY_CH_DOWN)
 
     @property

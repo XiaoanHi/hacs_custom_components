@@ -40,6 +40,7 @@ class TCLSourceButton(ButtonEntity):
         self._source = source
         self._attr_unique_id = f"{coordinator.entry.entry_id}-source-{source.lower()}"
         self._attr_name = source
+        self._attr_icon = "mdi:video-input-hdmi"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.data.get(CONF_DEVICE_NAME) or coordinator.host,

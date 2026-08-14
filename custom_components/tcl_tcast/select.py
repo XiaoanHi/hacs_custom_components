@@ -36,6 +36,7 @@ class TCLSourceSelect(SelectEntity):
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.entry.entry_id}-source"
         self._attr_translation_key = "source"
+        self._attr_icon = "mdi:video-input-hdmi"
         self._attr_options = list(SOURCE_LIST)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},

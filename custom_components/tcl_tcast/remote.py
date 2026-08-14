@@ -44,6 +44,7 @@ class TCLRemoteEntity(RemoteEntity):
         self._coordinator = coordinator
         self._attr_unique_id = f"{coordinator.entry.entry_id}-remote"
         self._attr_translation_key = "remote"
+        self._attr_icon = "mdi:remote"
         self._attr_supported_features = _SUPPORT_COMMANDS
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
