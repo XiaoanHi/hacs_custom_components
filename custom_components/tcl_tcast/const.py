@@ -118,7 +118,6 @@ SOURCE_BUTTONS = ["HDMI1", "HDMI2"]
 
 # --- Defaults ---
 SCAN_TIMEOUT = 8.0        # seconds for LAN discovery
-HEARTBEAT_INTERVAL = 20   # seconds between heartbeats
-HEARTBEAT_CONFIRM = 25    # seconds to wait for a heartbeat reply before offline
+HEARTBEAT_INTERVAL = 30   # seconds between heartbeats (spaced so TCP keepalive can probe)
 RECONNECT_DELAY = 5       # seconds
 CONNECT_TIMEOUT = 10      # seconds

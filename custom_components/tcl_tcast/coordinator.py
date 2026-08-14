@@ -12,7 +12,7 @@ from .const import (
     CONF_HOST,
     CONF_MAC,
     CONNECT_TIMEOUT,
-    HEARTBEAT_CONFIRM,
+    HEARTBEAT_INTERVAL,
     KEY_DOWN,
     KEY_OK,
     KEY_SOURCE,
@@ -45,7 +45,7 @@ class TCLCoordinator:
             uuid=str(entry.entry_id),
         )
         self.connected = False
-        self._current_source = SOURCE_LIST[0]  # input the SOURCE key cycles from
+        self._current_source = "HDMI2"  # default input assumption (change to your usual input)
         self._listeners: list[Listener] = []
         self._run_task: asyncio.Task | None = None
         self._read_task: asyncio.Task | None = None
@@ -102,32 +102,18 @@ class TCLCoordinator:
                 self._notify()
 
     async def _heartbeat_loop(self) -> None:
-        """Send heartbeats and confirm the TV replies; else mark it offline.
+        """Send heartbeats to keep the link alive.
 
-        The TV answers our ``150>>`` heartbeat, so if no frame (heartbeat
-        reply or anything else) arrives within HEARTBEAT_CONFIRM the link is
-        dead (e.g. TV lost its WiFi) — close the socket so read_loop exits
-        and the reconnect loop kicks in.
+        Offline detection is done by TCP keepalive (see TCLClient
+        _enable_keepalive) — the TV may be online yet silent (no heartbeat
+        reply), so we must NOT judge it offline by missing replies.
         """
         while self.connected and not self._shutdown:
-            before = self.client.last_rx
             try:
                 await self.client.heartbeat()
             except Exception:
                 break
-            try:
-                await self._sleep_or_shutdown(HEARTBEAT_CONFIRM)
-            except asyncio.CancelledError:
-                raise
-            if self._shutdown or not self.connected:
-                break
-            if self.client.last_rx <= before:
-                _LOGGER.warning(
-                    "No heartbeat reply from TCL TV at %s; assuming offline",
-                    self.host,
-                )
-                await self.client.close()
-                break
+            await self._sleep_or_shutdown(HEARTBEAT_INTERVAL)
 
     async def _sleep_or_shutdown(self, delay: float) -> None:
         try:
@@ -165,8 +151,19 @@ class TCLCoordinator:
             parts = raw.split(">>")
             if len(parts) > 2:
                 parsed = self.client.parse_input(parts[2])
+                _LOGGER.info(
+                    "269 query reply %r -> parsed current source: %s",
+                    raw,
+                    parsed,
+                )
                 if parsed:
                     self._current_source = parsed
+            else:
+                _LOGGER.warning("269 query reply malformed: %r", raw)
+        else:
+            _LOGGER.info(
+                "269 query for current input timed out (TV may not support it)"
+            )
         cur_idx = SOURCE_LIST.index(self._current_source)
         tgt_idx = SOURCE_LIST.index(target)
         if cur_idx == tgt_idx:

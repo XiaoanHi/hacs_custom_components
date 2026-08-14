@@ -183,7 +183,7 @@ class TCLClient:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         except OSError:
             return
-        for opt_name, val in (("TCP_KEEPIDLE", 30), ("TCP_KEEPINTVL", 10), ("TCP_KEEPCNT", 6)):
+        for opt_name, val in (("TCP_KEEPIDLE", 10), ("TCP_KEEPINTVL", 5), ("TCP_KEEPCNT", 3)):
             if hasattr(socket, opt_name):
                 try:
                     sock.setsockopt(socket.IPPROTO_TCP, getattr(socket, opt_name), val)
