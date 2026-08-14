@@ -1,6 +1,7 @@
 """Media player platform: TCL TV volume/playback/power controls."""
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from homeassistant.components.media_player import (
@@ -110,6 +111,14 @@ class TCLMediaPlayer(MediaPlayerEntity):
     async def async_turn_off(self) -> None:
         if self._coordinator.available:
             await self._coordinator.client.key(KEY_POWER)
+
+    def turn_on(self) -> None:
+        """Sync fallback so the base executor wrapper never raises."""
+        asyncio.run_coroutine_threadsafe(self.async_turn_on(), self.hass.loop)
+
+    def turn_off(self) -> None:
+        """Sync fallback so the base executor wrapper never raises."""
+        asyncio.run_coroutine_threadsafe(self.async_turn_off(), self.hass.loop)
 
     # -- volume --------------------------------------------------------- #
     async def async_set_volume_level(self, volume: float) -> None:

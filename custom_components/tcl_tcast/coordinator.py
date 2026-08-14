@@ -79,13 +79,15 @@ class TCLCoordinator:
                 self.connected = False
                 self._cancel_aux()
                 await self.client.close()
+                _LOGGER.info("Disconnected from TCL TV at %s", self.host)
                 self._notify()
             else:
                 try:
                     await self.client.connect(CONNECT_TIMEOUT)
                 except asyncio.CancelledError:
                     return
-                except Exception:
+                except Exception as err:
+                    _LOGGER.warning("Connect to TCL TV at %s failed: %s", self.host, err)
                     await self._sleep_or_shutdown(RECONNECT_DELAY)
                     continue
                 self.connected = True
