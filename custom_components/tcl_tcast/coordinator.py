@@ -90,9 +90,8 @@ class TCLCoordinator:
                     _LOGGER.warning("Connect to TCL TV at %s failed: %s", self.host, err)
                     await self._sleep_or_shutdown(RECONNECT_DELAY)
                     continue
-                # A TV in standby still accepts TCP/handshake, so only count it
-                # online once it actually answers a business query.
-                # Start the reader so pushes/heartbeats flow.
+                # Handshake success counts as online; offline is detected by
+                # the socket dropping (TCP keepalive / read loop).
                 self._read_task = asyncio.create_task(
                     self.client.read_loop(), name="tcl_tcast_read"
                 )

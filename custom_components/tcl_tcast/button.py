@@ -51,6 +51,15 @@ class TCLSourceButton(ButtonEntity):
     def available(self) -> bool:
         return self._coordinator.available
 
+    async def async_added_to_hass(self) -> None:
+        self._coordinator.add_listener(self._async_updated)
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._coordinator.remove_listener(self._async_updated)
+
+    def _async_updated(self) -> None:
+        self.async_write_ha_state()
+
     async def async_press(self) -> None:
         if not self.available:
             raise ServiceValidationError("TCL TV is not connected")

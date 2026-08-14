@@ -68,6 +68,7 @@ class TCLMediaPlayer(MediaPlayerEntity):
     def __init__(self, coordinator: TCLCoordinator) -> None:
         self._coordinator = coordinator
         self._media_state = MediaPlayerState.IDLE
+        self._attr_is_volume_muted = False
         self._attr_unique_id = f"{coordinator.entry.entry_id}-media_player"
         self._attr_supported_features = _FEATURES
         self._attr_source_list = list(SOURCE_LIST)
@@ -99,14 +100,17 @@ class TCLMediaPlayer(MediaPlayerEntity):
 
     # -- power ---------------------------------------------------------- #
     async def async_turn_on(self) -> None:
-        """Turn on the TV. If it's off (no link) wake it with WOL first."""
-        if self._coordinator.available:
-            await self._coordinator.client.key(KEY_POWER)
-        elif self._coordinator.mac:
-            _LOGGER.debug("Waking TV via WOL (mac=%s)", self._coordinator.mac)
-            await self._coordinator.client.wol_wake(self._coordinator.mac)
-        else:
-            _LOGGER.warning("TV offline and no MAC configured for WOL")
+        """Turn on the TV.
+
+        If the link is up the TV is already running — do NOT send POWER, that
+        would toggle it back OFF. Only wake via WOL when there is no link.
+        """
+        if not self._coordinator.available:
+            if self._coordinator.mac:
+                _LOGGER.debug("Waking TV via WOL (mac=%s)", self._coordinator.mac)
+                await self._coordinator.client.wol_wake(self._coordinator.mac)
+            else:
+                _LOGGER.warning("TV offline and no MAC configured for WOL")
 
     async def async_turn_off(self) -> None:
         if self._coordinator.available:
@@ -133,7 +137,13 @@ class TCLMediaPlayer(MediaPlayerEntity):
         await self._coordinator.client.key(KEY_VOL_DOWN)
 
     async def async_mute_volume(self, mute: bool) -> None:
+        # KEY_MUTE is a toggle; only press it when our tracked belief differs,
+        # so repeated calls with the same target don't flip the TV back.
+        if mute == self._attr_is_volume_muted:
+            return
         await self._coordinator.client.key(KEY_MUTE)
+        self._attr_is_volume_muted = mute
+        self.async_write_ha_state()
 
     # -- transport ------------------------------------------------------ #
     async def async_media_play(self) -> None:
