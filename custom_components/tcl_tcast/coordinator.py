@@ -12,6 +12,7 @@ from .const import (
     CONF_HOST,
     CONF_MAC,
     CONNECT_TIMEOUT,
+    HEARTBEAT_CONFIRM,
     HEARTBEAT_INTERVAL,
     KEY_DOWN,
     KEY_OK,
@@ -90,11 +91,23 @@ class TCLCoordinator:
                     _LOGGER.warning("Connect to TCL TV at %s failed: %s", self.host, err)
                     await self._sleep_or_shutdown(RECONNECT_DELAY)
                     continue
-                self.connected = True
+                # A TV in standby still accepts TCP/handshake, so only count it
+                # online once it actually answers a business query.
+                # Start the reader first so queries/responses actually flow.
                 self._read_task = asyncio.create_task(
-                    self.client.read_loop(),
-                    name="tcl_tcast_read",
+                    self.client.read_loop(), name="tcl_tcast_read"
                 )
+                if not await self._confirm_online():
+                    _LOGGER.warning(
+                        "TCL TV at %s handshake ok but no input-query reply "
+                        "(standby/off); keeping it offline",
+                        self.host,
+                    )
+                    self._cancel_aux()
+                    await self.client.close()
+                    await self._sleep_or_shutdown(RECONNECT_DELAY)
+                    continue
+                self.connected = True
                 self._hb_task = asyncio.create_task(
                     self._heartbeat_loop(), name="tcl_tcast_heartbeat"
                 )
@@ -102,18 +115,48 @@ class TCLCoordinator:
                 self._notify()
 
     async def _heartbeat_loop(self) -> None:
-        """Send heartbeats to keep the link alive.
+        """Probe the TV to distinguish online vs standby/powered-off.
 
-        Offline detection is done by TCP keepalive (see TCLClient
-        _enable_keepalive) — the TV may be online yet silent (no heartbeat
-        reply), so we must NOT judge it offline by missing replies.
+        TCP keepalive can't tell "standby but network alive" from "online",
+        so we send a cmd-269 input query: while the TV is truly on it answers,
+        when powered off / in standby it doesn't -> mark offline. Falls back
+        to just sending heartbeats if the query never gets a reply while the
+        connection is actually healthy (online-but-silent TVs).
         """
         while self.connected and not self._shutdown:
+            before = self.client.last_rx
             try:
                 await self.client.heartbeat()
+                await asyncio.wait_for(self._wait_rx(before), HEARTBEAT_CONFIRM)
+            except asyncio.TimeoutError:
+                _LOGGER.warning(
+                    "TCL TV at %s did not answer heartbeat; marking offline",
+                    self.host,
+                )
+                await self.client.close()
+                break
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 break
             await self._sleep_or_shutdown(HEARTBEAT_INTERVAL)
+
+    async def _confirm_online(self) -> bool:
+        """True if the TV answers a heartbeat (cmd 150 -> '150>>YES')."""
+        before = self.client.last_rx
+        try:
+            await self.client.heartbeat()
+        except Exception:
+            return False
+        try:
+            await asyncio.wait_for(self._wait_rx(before), HEARTBEAT_CONFIRM)
+        except asyncio.TimeoutError:
+            return False
+        return True
+
+    async def _wait_rx(self, before: float) -> None:
+        while self.client.last_rx <= before:
+            await asyncio.sleep(0.2)
 
     async def _sleep_or_shutdown(self, delay: float) -> None:
         try:
@@ -145,25 +188,6 @@ class TCLCoordinator:
         target = (source or "").strip().upper()
         if target not in SOURCE_LIST:
             raise ValueError(f"Unknown source '{source}'")
-        # Best-effort: try to read the TV's actual current input first.
-        raw = await self.client.query_current_input(timeout=1.0)
-        if raw:
-            parts = raw.split(">>")
-            if len(parts) > 2:
-                parsed = self.client.parse_input(parts[2])
-                _LOGGER.info(
-                    "269 query reply %r -> parsed current source: %s",
-                    raw,
-                    parsed,
-                )
-                if parsed:
-                    self._current_source = parsed
-            else:
-                _LOGGER.warning("269 query reply malformed: %r", raw)
-        else:
-            _LOGGER.info(
-                "269 query for current input timed out (TV may not support it)"
-            )
         cur_idx = SOURCE_LIST.index(self._current_source)
         tgt_idx = SOURCE_LIST.index(target)
         if cur_idx == tgt_idx:
