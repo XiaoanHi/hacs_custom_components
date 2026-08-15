@@ -122,5 +122,11 @@ HEARTBEAT_INTERVAL = 10   # seconds between probes; must beat the TV's idle
                           # drop (~15 s) or the socket is closed -> offline
 HEARTBEAT_CONFIRM = 25    # seconds to wait for a probe reply before offline
 HEARTBEAT_MISSES = 3      # consecutive missed replies before declaring offline
+READ_IDLE_TIMEOUT = 30    # seconds with no bytes from the TV before the read
+                          # loop declares it offline. An online TV answers
+                          # each heartbeat, so this only fires when the TV
+                          # goes silent (powered off / standby) — replacing
+                          # the old 300 s default that made off-detection
+                          # take a full 5 minutes.
 RECONNECT_DELAY = 5       # seconds
 CONNECT_TIMEOUT = 10      # seconds

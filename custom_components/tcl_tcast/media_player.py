@@ -69,6 +69,7 @@ class TCLMediaPlayer(MediaPlayerEntity):
         self._coordinator = coordinator
         self._media_state = MediaPlayerState.IDLE
         self._was_available = False
+        self._powering_off = False
         self._attr_is_volume_muted = False
         self._attr_unique_id = f"{coordinator.entry.entry_id}-media_player"
         self._attr_translation_key = "media_player"
@@ -84,13 +85,16 @@ class TCLMediaPlayer(MediaPlayerEntity):
 
     @property
     def state(self) -> MediaPlayerState:
-        if not self.available:
+        # Only report UNAVAILABLE for an unexpected link loss. While we are
+        # deliberately powering off, keep showing OFF so the card stays
+        # visible and the user can press power again.
+        if not self._coordinator.available and not self._powering_off:
             return MediaPlayerState.UNAVAILABLE
         return self._media_state
 
     @property
     def available(self) -> bool:
-        return self._coordinator.available
+        return self._coordinator.available or self._powering_off
 
     async def async_added_to_hass(self) -> None:
         self._coordinator.add_listener(self._async_updated)
@@ -102,6 +106,7 @@ class TCLMediaPlayer(MediaPlayerEntity):
         if not self._was_available and self._coordinator.available:
             # TV came back online: clear any optimistic power-off state.
             self._media_state = MediaPlayerState.IDLE
+            self._powering_off = False
         self._was_available = self._coordinator.available
         self.async_write_ha_state()
 
@@ -113,12 +118,14 @@ class TCLMediaPlayer(MediaPlayerEntity):
     async def async_turn_on(self) -> None:
         """Turn on the TV.
 
-        If the link is up the TV is already running — do NOT send POWER, that
-        would toggle it back OFF. Only wake via WOL when there is no link.
+        If the link is up and we are not mid-power-off the TV is already
+        running — do NOT send POWER, that would toggle it back OFF. Wake via
+        WOL only when there is no link (or right after we powered it off).
         """
-        if not self._coordinator.available:
+        if not self._coordinator.available or self._powering_off:
             if self._coordinator.mac:
                 _LOGGER.debug("Waking TV via WOL (mac=%s)", self._coordinator.mac)
+                self._powering_off = True
                 await self._coordinator.client.wol_wake(self._coordinator.mac)
             else:
                 _LOGGER.warning("TV offline and no MAC configured for WOL")
@@ -127,8 +134,9 @@ class TCLMediaPlayer(MediaPlayerEntity):
         if self._coordinator.available:
             await self._coordinator.client.key(KEY_POWER)
             # Optimistic: reflect the power-off immediately instead of waiting
-            # for the socket drop to be detected (can take up to ~30 s).
-            self._media_state = MediaPlayerState.STANDBY
+            # for the socket drop to be detected (up to READ_IDLE_TIMEOUT).
+            self._powering_off = True
+            self._media_state = MediaPlayerState.OFF
             self.async_write_ha_state()
 
     def turn_on(self) -> None:

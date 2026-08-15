@@ -29,6 +29,7 @@ from .const import (
     CMD_KEY,
     CMD_MOUSE,
     CMD_SNAP_SHOT,
+    READ_IDLE_TIMEOUT,
     SOURCE_LIST,
     TCP_PORT,
     WOL_BROADCAST,
@@ -325,7 +326,7 @@ class TCLClient:
             pass
         return None
 
-    async def read_loop(self, idle_timeout: float = 300.0) -> None:
+    async def read_loop(self, idle_timeout: float = READ_IDLE_TIMEOUT) -> None:
         """Background task: read frames until the socket dies.
 
         Offline detection is handled by TCP keepalive (see _enable_keepalive),

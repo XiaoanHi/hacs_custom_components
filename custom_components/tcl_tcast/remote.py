@@ -42,6 +42,8 @@ class TCLRemoteEntity(RemoteEntity):
 
     def __init__(self, coordinator: TCLCoordinator) -> None:
         self._coordinator = coordinator
+        self._powering_off = False
+        self._was_available = False
         self._attr_unique_id = f"{coordinator.entry.entry_id}-remote"
         self._attr_translation_key = "remote"
         self._attr_icon = "mdi:remote"
@@ -55,23 +57,28 @@ class TCLRemoteEntity(RemoteEntity):
 
     @property
     def is_on(self) -> bool:
-        return self._coordinator.available
+        # While we are deliberately powering off, report OFF immediately so
+        # the power button flips without waiting for the link to drop.
+        return self._coordinator.available and not self._powering_off
 
     @property
     def available(self) -> bool:
-        return self._coordinator.available
+        # Stay usable while powering off so the user can power back on.
+        return self._coordinator.available or self._powering_off
 
     # -- power (the remote's power button) -------------------------------- #
     async def async_turn_off(self) -> None:
         """Power off via the toggle POWER key; only when the link is up."""
-        if self.is_on:
+        if self._coordinator.available and not self._powering_off:
             await self._coordinator.client.key(KEY_POWER)
+            self._powering_off = True
 
     async def async_turn_on(self) -> None:
         """Power on: link up means the TV is already on; offline -> WOL."""
-        if not self.is_on:
+        if not self._coordinator.available or self._powering_off:
             if self._coordinator.mac:
                 _LOGGER.debug("Waking TV via WOL (mac=%s)", self._coordinator.mac)
+                self._powering_off = True
                 await self._coordinator.client.wol_wake(self._coordinator.mac)
             else:
                 _LOGGER.warning("TV offline and no MAC configured for WOL")
@@ -91,6 +98,10 @@ class TCLRemoteEntity(RemoteEntity):
         self._coordinator.remove_listener(self._async_updated)
 
     def _async_updated(self) -> None:
+        if not self._was_available and self._coordinator.available:
+            # TV came back online: clear any optimistic power-off state.
+            self._powering_off = False
+        self._was_available = self._coordinator.available
         self.async_write_ha_state()
 
     async def async_send_command(self, command, **kwargs) -> None:
